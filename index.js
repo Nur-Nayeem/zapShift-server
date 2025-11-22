@@ -1,8 +1,10 @@
 const express = require("express");
 const cors = require("cors");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
 const port = 4000;
+const stripe = require("stripe")(process.env.STRIPE_SECRET);
 
 app.use(cors());
 app.use(express.json());
@@ -11,7 +13,6 @@ app.get("/", (req, res) => {
   res.send("welcome to the server");
 });
 
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = process.env.MONGODB_URI;
 
 const client = new MongoClient(uri, {
@@ -44,11 +45,45 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/parcels/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await parcelCollection.findOne(query);
+      res.send(result);
+    });
+
     app.delete("/parcels/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await parcelCollection.deleteOne(query);
       res.send(result);
+    });
+
+    app.post("/make-pament-session", async (req, res) => {
+      const paymentInfo = req.body;
+      const amount = parseFloat(paymentInfo.cost) * 100;
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "USD",
+              product_data: {
+                name: paymentInfo.parcelName,
+              },
+              unit_amount: amount,
+            },
+            quantity: 1,
+          },
+        ],
+        customer_email: paymentInfo.senderEmail,
+        mode: "payment",
+        metadata: {
+          parcelId: paymentInfo.parcelId,
+        },
+        success_url: `${process.env.CLIENT_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.CLIENT_DOMAIN}/dashboard/payment-cancelled`,
+      });
+      res.send({ url: session.url });
     });
 
     await client.db("admin").command({ ping: 1 });
