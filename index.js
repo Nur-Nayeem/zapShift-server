@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { send } = require("process");
 require("dotenv").config();
 const app = express();
 const port = 4000;
@@ -145,7 +146,6 @@ async function run() {
         const resultPayment = await paymentCollection.insertOne(payment);
 
         return res.send({
-          // <<< FIX: add return
           success: true,
           modifyParcel: result,
           trackingId: trackingId,
@@ -156,6 +156,16 @@ async function run() {
 
       // Only runs if NOT paid
       return res.send({ success: false }); // <<< FIX: add return
+    });
+
+    app.get("/payments", async (req, res) => {
+      const { email } = req.query;
+      const query = {};
+      if (email) {
+        query.customerEmail = email;
+      }
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
     });
 
     await client.db("admin").command({ ping: 1 });
