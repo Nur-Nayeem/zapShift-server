@@ -7,9 +7,33 @@ require("dotenv").config();
 const app = express();
 const port = 4000;
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
+const admin = require("firebase-admin");
 
+const serviceAccount = require("./firebase-admin-sdk.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+//middleweres
 app.use(cors());
 app.use(express.json());
+
+//verify user
+const verifyFireBaseToken = async (req, res, next) => {
+  const token = req.headers.authorization;
+  if (!token) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+  try {
+    const idToken = token.split(" ")[1];
+    const decode = await admin.auth().verifyIdToken(idToken);
+    req.decoded_email = decode.email;
+    next();
+  } catch (error) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+};
 
 app.get("/", (req, res) => {
   res.send("welcome to the server");
@@ -107,7 +131,6 @@ async function run() {
       const query = { transactionId: transactionId };
 
       const paymentExist = await paymentCollection.findOne(query);
-      console.log(paymentExist);
 
       if (paymentExist) {
         return res.send({
@@ -155,16 +178,22 @@ async function run() {
       }
 
       // Only runs if NOT paid
-      return res.send({ success: false }); // <<< FIX: add return
+      return res.send({ success: false });
     });
 
-    app.get("/payments", async (req, res) => {
+    app.get("/payments", verifyFireBaseToken, async (req, res) => {
       const { email } = req.query;
       const query = {};
       if (email) {
         query.customerEmail = email;
+        if (req.decoded_email !== email) {
+          return res.status(403).send({ message: "Forbidden access" });
+        }
       }
-      const result = await paymentCollection.find(query).toArray();
+      const result = await paymentCollection
+        .find(query)
+        .sort({ paidAt: -1 })
+        .toArray();
       res.send(result);
     });
 
