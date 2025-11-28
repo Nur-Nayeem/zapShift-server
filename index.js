@@ -64,7 +64,10 @@ async function run() {
     const zapShiftDb = client.db("zap_shift_db");
     const parcelCollection = zapShiftDb.collection("parcels");
     const paymentCollection = zapShiftDb.collection("payments");
+    const usersCollection = zapShiftDb.collection("users");
+    const ridersCollection = zapShiftDb.collection("riders");
 
+    //parcel related api
     app.get("/parcels", async (req, res) => {
       const query = {};
       const { email } = req.query;
@@ -95,6 +98,7 @@ async function run() {
       res.send(result);
     });
 
+    //payment related api
     app.post("/make-pament-session", async (req, res) => {
       const paymentInfo = req.body;
       const amount = parseFloat(paymentInfo.cost) * 100;
@@ -197,7 +201,32 @@ async function run() {
       res.send(result);
     });
 
-    await client.db("admin").command({ ping: 1 });
+    //user related api
+    app.post("/user", async (req, res) => {
+      const user = req.body;
+      user.role = "user";
+      user.createdAt = new Date();
+      const email = user.email;
+      const userExists = await usersCollection.findOne({ email });
+
+      if (userExists) {
+        return res.send({ message: "user already exists" });
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+
+    //rider related api
+
+    app.post("/riders", async (req, res) => {
+      const riderInfoObj = req.body;
+      riderInfoObj.status = "pending";
+      riderInfoObj.createdAt = new Date();
+      const result = await ridersCollection.insertOne(riderInfoObj);
+      res.send(result);
+    });
+
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
