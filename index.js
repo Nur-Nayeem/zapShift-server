@@ -226,6 +226,44 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/riders", async (req, res) => {
+      const query = {};
+      if (req.query.status) {
+        query.status = req.query.status;
+      }
+      const cursor = ridersCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+    app.patch("/riders/:id", verifyFireBaseToken, async (req, res) => {
+      const status = req.body.status;
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          status: status,
+        },
+      };
+
+      const result = await ridersCollection.updateOne(query, updatedDoc);
+
+      if (status === "approved") {
+        const email = req.body.email;
+        const userQuery = { email };
+        const updateUser = {
+          $set: {
+            role: "rider",
+          },
+        };
+        const userResult = await usersCollection.updateOne(
+          userQuery,
+          updateUser
+        );
+      }
+
+      res.send(result);
+    });
+
     // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
